@@ -5,6 +5,7 @@ from web3 import Web3
 from web3.middleware import geth_poa_middleware
 
 import pancakeabi
+## https://ethereum.stackexchange.com/questions/102063/understand-price-impact-and-liquidity-in-pancakeswap
 
 rpc = 'https://bsc-mainnet.rpcfast.com?api_key=aAlSFtiap9XQpEU7R0i7H8xUuxzPMl6iQ0c5DMr2zy8QbSaubjWphRXmqzVIdi8V'
 bsc = Web3(Web3.HTTPProvider(rpc))
