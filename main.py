@@ -5,6 +5,7 @@ from web3 import Web3
 from web3.middleware import geth_poa_middleware
 
 import pancakeabi
+import dip
 ## https://ethereum.stackexchange.com/questions/102063/understand-price-impact-and-liquidity-in-pancakeswap
 
 rpc = 'https://bsc-mainnet.rpcfast.com?api_key=aAlSFtiap9XQpEU7R0i7H8xUuxzPMl6iQ0c5DMr2zy8QbSaubjWphRXmqzVIdi8V'
@@ -16,7 +17,7 @@ while not bsc.isConnected():
     time.sleep(1)
 
 router = bsc.toChecksumAddress('0x10ED43C718714eb63d5aA57B78B54704E256024E')
-router_contract = bsc.eth.contract(router, abi=pancakeabi.abi)
+router_contract = bsc.eth.contract(router, abi=pancakeabi.routerAbi)
 
 pending = bsc.eth.filter('pending')
 
