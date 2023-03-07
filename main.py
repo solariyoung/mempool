@@ -4,7 +4,7 @@ from web3 import Web3
 from web3.middleware import geth_poa_middleware
 
 import pancakeabi
-import dip
+import functionhash
 
 ## https://ethereum.stackexchange.com/questions/102063/understand-price-impact-and-liquidity-in-pancakeswap
 
@@ -63,13 +63,13 @@ def calculate(tokenPath, amountIn):
 
 
 # 临时测试代码
-
+'''
 result = calculate([bsc.toChecksumAddress('0x55d398326f99059ff775485246999027b3197955'),
                     bsc.toChecksumAddress('0x42414624c55a9cba80789f47c8f9828a7974e40f'), ],
                    100000121014210120101021)
 
 exit(110)
-
+'''
 pending = bsc.eth.filter('pending')
 
 while 1:
@@ -79,11 +79,12 @@ while 1:
         try:
             detail = bsc.eth.get_transaction(i.hex())
             if detail['to'] == '0x10ED43C718714eb63d5aA57B78B54704E256024E':
-                if detail['input'][0:10] == "0x38ed1739":
+                if detail['input'][0:10] in functionhash.functionHash:
                     print(detail['input'])
                     print(routerContract.decode_function_input(detail['input']))
-        except:
+        except Exception as e:
             print("a error occurred")
+            print(e)
             time.sleep(0.1)
 
     time.sleep(1)
