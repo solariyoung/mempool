@@ -1,4 +1,3 @@
-
 import time
 
 from web3 import Web3
@@ -6,6 +5,7 @@ from web3.middleware import geth_poa_middleware
 
 import pancakeabi
 import dip
+
 ## https://ethereum.stackexchange.com/questions/102063/understand-price-impact-and-liquidity-in-pancakeswap
 
 rpc = 'https://bsc-mainnet.rpcfast.com?api_key=aAlSFtiap9XQpEU7R0i7H8xUuxzPMl6iQ0c5DMr2zy8QbSaubjWphRXmqzVIdi8V'
@@ -22,7 +22,7 @@ pancakeFactory = bsc.toChecksumAddress('0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c
 factoryContract = bsc.eth.contract(pancakeFactory, abi=pancakeabi.factoryAbi)
 
 
-def calculate(tokenPath, amount):
+def calculate(tokenPath, amountIn):
     if len(tokenPath) > 2:
         return False
     else:
@@ -30,11 +30,44 @@ def calculate(tokenPath, amount):
             bsc.toChecksumAddress(tokenPath[0]),
             bsc.toChecksumAddress(tokenPath[1])
         ).call()
+        pairContract = bsc.eth.contract(tokenPair, abi=pancakeabi.pairAbi)
+        r = pairContract.functions.getReserves().call()
+        token0 = pairContract.functions.token0().call()
+        if token0 != tokenPath[0]:
+            reserve = [r[1], r[0]]
+        else:
+            reserve = r[0:2]
+
+        _rA = reserve[0]
+        _rB = reserve[1]
+        print(_rA)
+        print(_rB)
+
+        amountInWithFee = amountIn * 0.9975
+        print("Amount In：" + str(amountIn))
+        print("Amount In with fee:" + str(amountInWithFee))
+        initK = _rA * _rB
+        print("initK :" + str(initK))
+        rB_ = initK / (_rA + amountInWithFee)
+        print("rb after :" + str(rB_))
+        amountOut = _rB - rB_
+        print("amount out:" + str(amountOut))
+        marketPrice = amountInWithFee / amountOut
+        print("market price :" + str(marketPrice))
+        midPrice = _rA / _rB
+        print("mid price :" + str(midPrice))
+        priceImpact = 1 - (midPrice / marketPrice)
+        print("price impact :" + str(priceImpact))
+
         return tokenPair
 
-## 临时测试代码
-result = calculate(['0x42414624c55a9cba80789f47c8f9828a7974e40f','0x55d398326f99059ff775485246999027b3197955'],1)
-print(result)
+
+# 临时测试代码
+
+result = calculate([bsc.toChecksumAddress('0x55d398326f99059ff775485246999027b3197955'),
+                    bsc.toChecksumAddress('0x42414624c55a9cba80789f47c8f9828a7974e40f'), ],
+                   100000121014210120101021)
+
 exit(110)
 
 pending = bsc.eth.filter('pending')
