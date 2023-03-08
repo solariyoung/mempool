@@ -1,14 +1,14 @@
 import time
-
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
-
 import pancakeabi
 import functionhash
+import logzero
+from logzero import logger
 
 ## https://ethereum.stackexchange.com/questions/102063/understand-price-impact-and-liquidity-in-pancakeswap
-
-rpc = 'https://bsc-mainnet.rpcfast.com?api_key=aAlSFtiap9XQpEU7R0i7H8xUuxzPMl6iQ0c5DMr2zy8QbSaubjWphRXmqzVIdi8V'
+logzero.logfile("./debug.log")
+rpc = 'https://bsc.getblock.io/b45294ad-7b89-4e5e-a3e4-26aadc86126e/mainnet/'
 bsc = Web3(Web3.HTTPProvider(rpc))
 bsc.middleware_onion.inject(geth_poa_middleware, layer=0)
 
@@ -24,6 +24,7 @@ factoryContract = bsc.eth.contract(pancakeFactory, abi=pancakeabi.factoryAbi)
 
 def calculate(tokenPath, amountIn):
     if len(tokenPath) > 2:
+        logger.info("不符合计算规则")
         return False
     else:
         tokenPair = factoryContract.functions.getPair(
@@ -40,24 +41,27 @@ def calculate(tokenPath, amountIn):
 
         _rA = reserve[0]
         _rB = reserve[1]
-        print(_rA)
-        print(_rB)
 
+        logger.info("输入数量：" + str(amountIn))
         amountInWithFee = amountIn * 0.9975
-        print("Amount In：" + str(amountIn))
-        print("Amount In with fee:" + str(amountInWithFee))
+        # print("Amount In：" + str(amountIn))
+        # print("Amount In with fee:" + str(amountInWithFee))
         initK = _rA * _rB
-        print("initK :" + str(initK))
+        # print("initK :" + str(initK))
         rB_ = initK / (_rA + amountInWithFee)
-        print("rb after :" + str(rB_))
+        # print("rb after :" + str(rB_))
         amountOut = _rB - rB_
-        print("amount out:" + str(amountOut))
+        # print("amount out:" + str(amountOut))
         marketPrice = amountInWithFee / amountOut
-        print("market price :" + str(marketPrice))
+        # print("market price :" + str(marketPrice))
         midPrice = _rA / _rB
-        print("mid price :" + str(midPrice))
+        # print("mid price :" + str(midPrice))
         priceImpact = 1 - (midPrice / marketPrice)
-        print("price impact :" + str(priceImpact))
+        # print("price impact :" + str(priceImpact))
+
+        logger.warning("交易前价格:" + str(midPrice)
+                       + "交易后价格：" + str(marketPrice)
+                       + "价格影响比例：" + str(int(priceImpact * 100000) / 1000) + "%")
 
         return tokenPair
 
@@ -71,20 +75,24 @@ result = calculate([bsc.toChecksumAddress('0x55d398326f99059ff775485246999027b31
 exit(110)
 '''
 pending = bsc.eth.filter('pending')
-
 while 1:
+    print(bsc.eth.get_block_number())
     pendingList = pending.get_new_entries()
+    print(len(pendingList))
     ##print(pendingList)
     for i in pendingList:
         try:
             detail = bsc.eth.get_transaction(i.hex())
             if detail['to'] == '0x10ED43C718714eb63d5aA57B78B54704E256024E':
                 if detail['input'][0:10] in functionhash.functionHash:
-                    print(detail['input'])
-                    print(routerContract.decode_function_input(detail['input']))
+                    # 这里解析出来后的类型为tuple
+                    readableInput = routerContract.decode_function_input(detail['input'])[1]
+                    # print(readableInput)
+                    logger.info("检测到一条交易：" + i.hex())
+                    calculate(readableInput['path'], readableInput['amountIn'])
+                    break
         except Exception as e:
             print("a error occurred")
             print(e)
             time.sleep(0.1)
-
     time.sleep(1)
