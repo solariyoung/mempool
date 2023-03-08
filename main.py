@@ -5,10 +5,12 @@ import pancakeabi
 import functionhash
 import logzero
 from logzero import logger
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 ## https://ethereum.stackexchange.com/questions/102063/understand-price-impact-and-liquidity-in-pancakeswap
 logzero.logfile("./debug.log")
-rpc = 'https://bsc.getblock.io/b45294ad-7b89-4e5e-a3e4-26aadc86126e/mainnet/'
+rpc = 'https://bsc.getblock.io/c834aa07-59e3-4cf1-ac0f-eaae186d3805/mainnet/'
 bsc = Web3(Web3.HTTPProvider(rpc))
 bsc.middleware_onion.inject(geth_poa_middleware, layer=0)
 
@@ -21,6 +23,7 @@ routerContract = bsc.eth.contract(pancakeRouter, abi=pancakeabi.routerAbi)
 pancakeFactory = bsc.toChecksumAddress('0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73')
 factoryContract = bsc.eth.contract(pancakeFactory, abi=pancakeabi.factoryAbi)
 
+thread_pool_executor = ThreadPoolExecutor(max_workers=100, thread_name_prefix="test_")
 
 def calculate(tokenPath, amountIn):
     if len(tokenPath) > 2:
@@ -75,24 +78,30 @@ result = calculate([bsc.toChecksumAddress('0x55d398326f99059ff775485246999027b31
 exit(110)
 '''
 pending = bsc.eth.filter('pending')
+
+
+def query_thread(tx):
+    tid = threading.current_thread()
+    time.sleep(0.1)
+    try:
+        detail = bsc.eth.get_transaction(tx.hex())
+        if detail['to'] == '0x10ED43C718714eb63d5aA57B78B54704E256024E':
+            if detail['input'][0:10] in functionhash.functionHash:
+                # 这里解析出来后的类型为tuple
+                readableInput = routerContract.decode_function_input(detail['input'])[1]
+                # print(readableInput)
+                logger.info(str(tid.name) + "检测到一条交易：" + i.hex())
+                calculate(readableInput['path'], readableInput['amountIn'])
+    except Exception as e:
+        print("a error occurred")
+        print(e)
+        time.sleep(0.1)
+
+
 while 1:
     print(bsc.eth.get_block_number())
     pendingList = pending.get_new_entries()
-    print(len(pendingList))
-    ##print(pendingList)
+
     for i in pendingList:
-        try:
-            detail = bsc.eth.get_transaction(i.hex())
-            if detail['to'] == '0x10ED43C718714eb63d5aA57B78B54704E256024E':
-                if detail['input'][0:10] in functionhash.functionHash:
-                    # 这里解析出来后的类型为tuple
-                    readableInput = routerContract.decode_function_input(detail['input'])[1]
-                    # print(readableInput)
-                    logger.info("检测到一条交易：" + i.hex())
-                    calculate(readableInput['path'], readableInput['amountIn'])
-                    break
-        except Exception as e:
-            print("a error occurred")
-            print(e)
-            time.sleep(0.1)
-    time.sleep(1)
+        thread_pool_executor.submit(query_thread, i)
+    time.sleep(1000)
