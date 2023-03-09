@@ -11,7 +11,7 @@ import os
 
 ## https://ethereum.stackexchange.com/questions/102063/understand-price-impact-and-liquidity-in-pancakeswap
 logzero.logfile("./debug.log")
-rpc = 'https://bsc.getblock.io/c834aa07-59e3-4cf1-ac0f-eaae186d3805/mainnet/'
+rpc = 'https://nd-248-326-447.p2pify.com/3a24bf48840a7967545b19bade5e5c5f'
 bsc = Web3(Web3.HTTPProvider(rpc))
 bsc.middleware_onion.inject(geth_poa_middleware, layer=0)
 
@@ -91,19 +91,22 @@ def query_thread(tx):
                 readableInput = routerContract.decode_function_input(detail['input'])[1]
                 # print(readableInput)
                 logger.info("进程" + str(tid) + "：检测到一条交易：" + tx.hex())
+
+
+                # inline开始
                 calculate(readableInput['path'], readableInput['amountIn'])
     except Exception as e:
-        print("a error occurred")
-        print(e)
+        # print("a error occurred")
+        # print(e)
         time.sleep(0.1)
 
 
 if __name__ == '__main__':
     while 1:
-        print(bsc.eth.get_block_number())
+        logger.info(bsc.eth.get_block_number())
         pendingList = pending.get_new_entries()
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=60) as processPool:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=30) as processPool:
             #for i in pendingList:
             processPool.map(query_thread, pendingList)
         time.sleep(3)
