@@ -6,7 +6,8 @@ import functionhash
 import logzero
 from logzero import logger
 import threading
-from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
+import os
 
 ## https://ethereum.stackexchange.com/questions/102063/understand-price-impact-and-liquidity-in-pancakeswap
 logzero.logfile("./debug.log")
@@ -23,7 +24,7 @@ routerContract = bsc.eth.contract(pancakeRouter, abi=pancakeabi.routerAbi)
 pancakeFactory = bsc.toChecksumAddress('0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73')
 factoryContract = bsc.eth.contract(pancakeFactory, abi=pancakeabi.factoryAbi)
 
-thread_pool_executor = ThreadPoolExecutor(max_workers=100, thread_name_prefix="test_")
+
 
 def calculate(tokenPath, amountIn):
     if len(tokenPath) > 2:
@@ -81,8 +82,7 @@ pending = bsc.eth.filter('pending')
 
 
 def query_thread(tx):
-    tid = threading.current_thread()
-    time.sleep(0.1)
+    tid = os.getpid()
     try:
         detail = bsc.eth.get_transaction(tx.hex())
         if detail['to'] == '0x10ED43C718714eb63d5aA57B78B54704E256024E':
@@ -90,7 +90,7 @@ def query_thread(tx):
                 # 这里解析出来后的类型为tuple
                 readableInput = routerContract.decode_function_input(detail['input'])[1]
                 # print(readableInput)
-                logger.info(str(tid.name) + "检测到一条交易：" + i.hex())
+                logger.info("进程" + str(tid) + "：检测到一条交易：" + tx.hex())
                 calculate(readableInput['path'], readableInput['amountIn'])
     except Exception as e:
         print("a error occurred")
@@ -98,10 +98,12 @@ def query_thread(tx):
         time.sleep(0.1)
 
 
-while 1:
-    print(bsc.eth.get_block_number())
-    pendingList = pending.get_new_entries()
+if __name__ == '__main__':
+    while 1:
+        print(bsc.eth.get_block_number())
+        pendingList = pending.get_new_entries()
 
-    for i in pendingList:
-        thread_pool_executor.submit(query_thread, i)
-    time.sleep(1000)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=60) as processPool:
+            #for i in pendingList:
+            processPool.map(query_thread, pendingList)
+        time.sleep(3)
