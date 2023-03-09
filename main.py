@@ -24,60 +24,6 @@ routerContract = bsc.eth.contract(pancakeRouter, abi=pancakeabi.routerAbi)
 pancakeFactory = bsc.toChecksumAddress('0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73')
 factoryContract = bsc.eth.contract(pancakeFactory, abi=pancakeabi.factoryAbi)
 
-
-
-def calculate(tokenPath, amountIn):
-    if len(tokenPath) > 2:
-        logger.info("不符合计算规则")
-        return False
-    else:
-        tokenPair = factoryContract.functions.getPair(
-            bsc.toChecksumAddress(tokenPath[0]),
-            bsc.toChecksumAddress(tokenPath[1])
-        ).call()
-        pairContract = bsc.eth.contract(tokenPair, abi=pancakeabi.pairAbi)
-        r = pairContract.functions.getReserves().call()
-        token0 = pairContract.functions.token0().call()
-        if token0 != tokenPath[0]:
-            reserve = [r[1], r[0]]
-        else:
-            reserve = r[0:2]
-
-        _rA = reserve[0]
-        _rB = reserve[1]
-
-        logger.info("输入数量：" + str(amountIn))
-        amountInWithFee = amountIn * 0.9975
-        # print("Amount In：" + str(amountIn))
-        # print("Amount In with fee:" + str(amountInWithFee))
-        initK = _rA * _rB
-        # print("initK :" + str(initK))
-        rB_ = initK / (_rA + amountInWithFee)
-        # print("rb after :" + str(rB_))
-        amountOut = _rB - rB_
-        # print("amount out:" + str(amountOut))
-        marketPrice = amountInWithFee / amountOut
-        # print("market price :" + str(marketPrice))
-        midPrice = _rA / _rB
-        # print("mid price :" + str(midPrice))
-        priceImpact = 1 - (midPrice / marketPrice)
-        # print("price impact :" + str(priceImpact))
-
-        logger.warning("交易前价格:" + str(midPrice)
-                       + "交易后价格：" + str(marketPrice)
-                       + "价格影响比例：" + str(int(priceImpact * 100000) / 1000) + "%")
-
-        return tokenPair
-
-
-# 临时测试代码
-'''
-result = calculate([bsc.toChecksumAddress('0x55d398326f99059ff775485246999027b3197955'),
-                    bsc.toChecksumAddress('0x42414624c55a9cba80789f47c8f9828a7974e40f'), ],
-                   100000121014210120101021)
-
-exit(110)
-'''
 pending = bsc.eth.filter('pending')
 
 
@@ -91,10 +37,49 @@ def query_thread(tx):
                 readableInput = routerContract.decode_function_input(detail['input'])[1]
                 # print(readableInput)
                 logger.info("进程" + str(tid) + "：检测到一条交易：" + tx.hex())
-
+                tokenPath = readableInput['path']
+                amountIn = readableInput['amountIn']
 
                 # inline开始
-                calculate(readableInput['path'], readableInput['amountIn'])
+                if len(tokenPath) > 2:
+                    logger.info("不符合计算规则")
+                else:
+                    tokenPair = factoryContract.functions.getPair(
+                        bsc.toChecksumAddress(tokenPath[0]),
+                        bsc.toChecksumAddress(tokenPath[1])
+                    ).call()
+                    pairContract = bsc.eth.contract(tokenPair, abi=pancakeabi.pairAbi)
+                    r = pairContract.functions.getReserves().call()
+                    token0 = pairContract.functions.token0().call()
+                    if token0 != tokenPath[0]:
+                        reserve = [r[1], r[0]]
+                    else:
+                        reserve = r[0:2]
+
+                    _rA = reserve[0]
+                    _rB = reserve[1]
+
+                    logger.info("进程" + str(tid) + ": 输入数量：" + str(amountIn))
+                    amountInWithFee = amountIn * 0.9975
+                    # print("Amount In：" + str(amountIn))
+                    # print("Amount In with fee:" + str(amountInWithFee))
+                    initK = _rA * _rB
+                    # print("initK :" + str(initK))
+                    rB_ = initK / (_rA + amountInWithFee)
+                    # print("rb after :" + str(rB_))
+                    amountOut = _rB - rB_
+                    # print("amount out:" + str(amountOut))
+                    marketPrice = amountInWithFee / amountOut
+                    # print("market price :" + str(marketPrice))
+                    midPrice = _rA / _rB
+                    # print("mid price :" + str(midPrice))
+                    priceImpact = 1 - (midPrice / marketPrice)
+                    # print("price impact :" + str(priceImpact))
+                    logger.info("进程" + str(tid) + ":" + tx.hex())
+                    logger.warning("进程" + str(tid) + ": 交易前价格:" + str(midPrice)
+                                   + "交易后价格：" + str(marketPrice)
+                                   + "价格影响比例：" + str(int(priceImpact * 100000) / 1000) + "%")
+
     except Exception as e:
         # print("a error occurred")
         # print(e)
@@ -105,8 +90,10 @@ if __name__ == '__main__':
     while 1:
         logger.info(bsc.eth.get_block_number())
         pendingList = pending.get_new_entries()
+        logger.info(len(pendingList))
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=30) as processPool:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=60) as processPool:
             #for i in pendingList:
             processPool.map(query_thread, pendingList)
-        time.sleep(3)
+        time.sleep(2)
+        processPool.shutdown(wait=False, cancel_futures=True)
