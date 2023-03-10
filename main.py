@@ -31,12 +31,12 @@ def query_thread(tx):
     tid = os.getpid()
     try:
         detail = bsc.eth.get_transaction(tx.hex())
-        if detail['to'] == '0x10ED43C718714eb63d5aA57B78B54704E256024E':
+        if detail['gasPrice'] >= 5000000000 and detail['to'] == '0x10ED43C718714eb63d5aA57B78B54704E256024E':
             if detail['input'][0:10] in functionhash.functionHash:
                 # 这里解析出来后的类型为tuple
                 readableInput = routerContract.decode_function_input(detail['input'])[1]
                 # print(readableInput)
-                logger.info("进程" + str(tid) + "：检测到一条交易：" + tx.hex())
+                # logger.info("进程" + str(tid) + "：检测到一条交易：" + tx.hex())
                 tokenPath = readableInput['path']
                 amountIn = readableInput['amountIn']
 
@@ -89,11 +89,17 @@ def query_thread(tx):
 if __name__ == '__main__':
     while 1:
         logger.info(bsc.eth.get_block_number())
-        pendingList = pending.get_new_entries()
-        logger.info(len(pendingList))
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=60) as processPool:
-            #for i in pendingList:
-            processPool.map(query_thread, pendingList)
-        time.sleep(2)
-        processPool.shutdown(wait=False, cancel_futures=True)
+        blocktime = bsc.eth.get_block(bsc.eth.get_block_number()).timestamp
+        localtime = int(time.time())
+
+        if localtime - blocktime <= 1:
+            pendingList = pending.get_new_entries()
+            logger.info(len(pendingList))
+            with concurrent.futures.ThreadPoolExecutor() as processPool:
+                # for i in pendingList:
+                processPool.map(query_thread, pendingList[0:60])
+                time.sleep(2.6)
+                # processPool.shutdown(wait=False, cancel_futures=True)
+        else:
+            time.sleep(0.8)
